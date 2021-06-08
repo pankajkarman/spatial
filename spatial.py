@@ -35,37 +35,58 @@ class IDW:
 class RegularGrid(IDW):
     def __init__(self, x, y, z):
         super().__init__(x, y, z)
+        self.coordinates = (self.x, self.y)
+        self.projection = pyproj.Proj(proj="latlon")
+        self.proj_coordinates = self.projection(*self.coordinates)
 
-    def interpolate(self, xi, yi, method="idw"):
+    def interpolate(self, xi, yi, method="idw", submethod="linear", verbose=0):
+        self.spacing = xi[1] - xi[0]
+        self.region = (np.min(xi), np.max(xi), np.min(yi), np.max(yi))
+
         if method == "idw":
-            zi = self.idw_interpolate(xi, yi)
+            zi = self.interpolate_idw(xi, yi)
         if method == "scipy":
-            zi = self.scipy_interpolate(xi, yi)
+            zi = self.interpolate_scipy(xi, yi, method=submethod)
         if method == "verde":
-            zi = self.verde_interpolate(xi, yi)
+            zi = self.interpolate_verde(xi, yi, method=submethod)
+        if method == "spline":
+            zi = self.interpolate_spline(xi, yi, verbose=verbose)
         return zi
 
-    def idw_interpolate(self, xi, yi):
+    def interpolate_idw(self, xi, yi):
         zi = super().interpolate(xi, yi)
         return zi
 
-    def scipy_interpolate(self, xi, yi, method="linear"):
+    def interpolate_scipy(self, xi, yi, method="linear"):
         nx, ny = np.meshgrid(xi, yi)
         zi = griddata((self.x, self.y), self.z, (nx, ny), method=method)
         return zi
 
-    def verde_interpolate(self, xi, yi, method="cubic"):
-        spacing = xi[1] - xi[0]
-        region = (np.min(xi), np.max(xi), np.min(yi), np.max(yi))
-        coordinates = (self.x, self.y)
-        projection = pyproj.Proj(proj="latlon")
-        proj_coordinates = projection(*coordinates)
+    def interpolate_spline(self, xi, yi, verbose=0):
+        spline = vd.SplineCV(dampings=(1e-5, 1e-3, 1e-1), mindists=(10e3, 50e3, 100e3))
+        spline.fit(self.proj_coordinates, self.z)
+        grid = spline.grid(
+            region=self.region,
+            spacing=self.spacing,
+            projection=self.projection,
+            dims=["Latitude", "Longitude"],
+            data_names=["mol"],
+        )
 
-        grd = vd.ScipyGridder(method=method).fit(proj_coordinates, self.z)
+        if verbose:
+            # We can show the best R² score obtained in the cross-validation
+            print("\nScore: {:.3f}".format(spline.scores_.max()))
+            print("\nBest spline configuration:")
+            print("  mindist:", spline.mindist_)
+            print("  damping:", spline.damping_)
+        return grid["mol"].values
+
+    def interpolate_verde(self, xi, yi, method="cubic"):
+        grd = vd.ScipyGridder(method=method).fit(self.proj_coordinates, self.z)
         grid = grd.grid(
-            region=region,
-            spacing=spacing,
-            projection=projection,
+            region=self.region,
+            spacing=self.spacing,
+            projection=self.projection,
             dims=["Latitude", "Longitude"],
             data_names=["mol"],
         )
