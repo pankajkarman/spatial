@@ -33,13 +33,15 @@ class IDW:
         return np.hypot(d0, d1)
 
 class RegularGrid(IDW):
-    def __init__(self, x, y, z):
-        super().__init__(x, y, z)
+    def __init__(self, lon, lat, z):
+        super().__init__(lon, lat, z)
         self.coordinates = (self.x, self.y)
         self.projection = pyproj.Proj(proj="latlon")
         self.proj_coordinates = self.projection(*self.coordinates)
 
-    def interpolate(self, xi, yi, method="idw", submethod="linear", verbose=0):
+    def interpolate(self, lonx, latx, method="idw", submethod="linear", verbose=0):
+        xi = lonx
+        yi = latx
         self.spacing = xi[1] - xi[0]
         self.region = (np.min(xi), np.max(xi), np.min(yi), np.max(yi))
 

@@ -5,3 +5,4 @@ This python library is intended to be used for gridding point data to regular gr
 # Methods
 1. Inverse Distance Weighting (IDW)
 2. Scipy griddata 
+3. Spline interpolation with cross-validation
